@@ -145,7 +145,7 @@ function App() {
 
             <div className="hero-meta">
               <div className="hero-role">
-                Desarrollador Full-Stack
+                {t('heroRole')}
               </div>
               <div className="contact-links">
                 <a href="mailto:gervasio_H@proton.me">

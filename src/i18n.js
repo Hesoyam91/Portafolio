@@ -6,6 +6,7 @@ const resources = {
     translation: {
       "sysTime": "SYS_TIME",
       "changeLang": "EN",
+      "heroRole": "Desarrollador Full-Stack",
       "resumeTitle": "Resumen Profesional",
       "resumeText": "Desarrollador Full-Stack con sólida formación en Ingeniería en Informática y experiencia práctica en el ciclo completo de desarrollo de software: desde arquitecturas backend e inteligencia artificial hasta interfaces frontend modernas y despliegue en la nube. Desarrollo con criterio técnico, visión de producto y capacidad de entrega.",
       "resumeHighlight": "Desarrollo con criterio técnico, visión de producto y capacidad de entrega.",
@@ -44,6 +45,7 @@ const resources = {
     translation: {
       "sysTime": "SYS_TIME",
       "changeLang": "ES",
+      "heroRole": "Full-Stack Developer",
       "resumeTitle": "Professional Summary",
       "resumeText": "Full-Stack Developer with a solid background in Computer Engineering and hands-on experience across the entire software development lifecycle: from backend architectures and artificial intelligence to modern frontend interfaces and cloud deployments. Driven by technical insight and product vision with strong delivery capacity.",
       "resumeHighlight": "Driven by technical insight and product vision with strong delivery capacity.",

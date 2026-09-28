@@ -45,7 +45,7 @@ const resources = {
       "sysTime": "SYS_TIME",
       "changeLang": "ES",
       "resumeTitle": "Professional Summary",
-      "resumeText": "Full-Stack Developer with a solid background in Computer Engineering and hands-on experience across the entire software development lifecycle: from backend architectures and artificial intelligence to modern frontend interfaces and cloud deployments. Driven by technical insight and product vision with strong delivery capacity. , results-oriented, and highly adaptable to new technologies.",
+      "resumeText": "Full-Stack Developer with a solid background in Computer Engineering and hands-on experience across the entire software development lifecycle: from backend architectures and artificial intelligence to modern frontend interfaces and cloud deployments. Driven by technical insight and product vision with strong delivery capacity.",
       "resumeHighlight": "Driven by technical insight and product vision with strong delivery capacity.",
       "contactMe": "Contact // Secure Link",
       "contactSub": "Have a project in mind? Let's talk.",

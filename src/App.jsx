@@ -1,5 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { STACK_GROUPS } from './stackData';
+import { INTERESTS, InterestIcon } from './interests';
+import Ouroboros from './Ouroboros';
 
 // Subtle typewriter hook used for the hero name and summary text
 function useTypewriter(text, speed = 45) {
@@ -17,7 +21,19 @@ function useTypewriter(text, speed = 45) {
   return displayed;
 }
 
-const SLIDE_IDS = ['hero', 'projects', 'freelance', 'stack', 'contact'];
+const SLIDE_IDS = ['hero', 'projects', 'profile', 'experience', 'stack', 'faq', 'contact'];
+const HIDDEN_PROJECTS = [
+  { n: 1, img: '/screenshots/hidden-game.jpg', tags: ["Ren'Py", 'Python'] },
+  { n: 2, img: '/screenshots/hidden-web.jpg', tags: ['React', 'FastAPI', 'SQL', 'Cloudflare', 'Cloudflare R2'] },
+];
+const NAV_LINKS = [
+  { key: 'navHome', slide: 0 },
+  { key: 'navProjects', slide: 1 },
+  { key: 'navExperience', slide: 3 },
+  { key: 'navStack', slide: 4 },
+  { key: 'navFaq', slide: 5 },
+  { key: 'navContact', slide: 6 },
+];
 
 function App() {
   const { t, i18n } = useTranslation();
@@ -63,6 +79,105 @@ function App() {
     return () => clearInterval(int);
   }, []);
 
+  const [theme, setTheme] = useState(() =>
+    document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
+  );
+
+  useEffect(() => {
+    if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem('theme', theme); } catch (e) { /* storage unavailable */ }
+    const icon = document.querySelector('link[rel="icon"]');
+    if (icon) icon.setAttribute('href', theme === 'dark' ? '/favicon.svg' : '/favicon-light.svg');
+  }, [theme]);
+
+  const [flipped, setFlipped] = useState({});
+  const toggleFlip = (key) => setFlipped((cur) => ({ ...cur, [key]: !cur[key] }));
+  const [openInterest, setOpenInterest] = useState(null);
+
+  // Hidden projects: null -> 'chaos' (page elements scatter) -> 'off' (CRT power-off) -> 'glitch' (red error messages)
+  // -> 'open' (red page) -> 'reboot' (red page glitches out) -> 'rebootBoot' (blue messages + progress bar, back to
+  // slide 0) -> 'closing' -> null
+  const [crashPhase, setCrashPhase] = useState(null);
+  const [mysteryGone, setMysteryGone] = useState(false);
+  const crashTimers = useRef([]);
+  const chaosEls = useRef([]);
+  useEffect(() => () => crashTimers.current.forEach(clearTimeout), []);
+  const later = (fn, ms) => { crashTimers.current.push(setTimeout(fn, ms)); };
+
+  const startCrash = () => {
+    if (crashPhase) return;
+    setCrashPhase('chaos');
+    later(() => setCrashPhase('off'), 1800);
+    later(() => setCrashPhase('glitch'), 2800);
+    later(() => setCrashPhase('open'), 5500);
+  };
+  const leaveCrash = useCallback(() => {
+    setCrashPhase('reboot');
+    crashTimers.current.push(setTimeout(() => {
+      setCrashPhase('rebootBoot');
+      setActiveSlide(0);
+      setMysteryGone(true);
+    }, 900));
+    crashTimers.current.push(setTimeout(() => setCrashPhase("closing"), 6600));
+    crashTimers.current.push(setTimeout(() => setCrashPhase(null), 7400));
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const live = ['chaos', 'off', 'glitch', 'open', 'reboot'].includes(crashPhase);
+    root.classList.toggle('is-crashing', crashPhase === 'chaos');
+    root.classList.toggle('is-poweroff', ['off', 'glitch', 'open', 'reboot'].includes(crashPhase));
+    if (live) root.setAttribute('data-crash', '1');
+    else root.removeAttribute('data-crash');
+    if (!live) {
+      root.classList.remove('is-chaos');
+      chaosEls.current.forEach((el) => ['--cx', '--cy', '--cr', '--csk', '--cs'].forEach((p) => el.style.removeProperty(p)));
+      chaosEls.current = [];
+    }
+  }, [crashPhase]);
+
+  // Chaos: every element of the page is thrown around at random, re-scattered every few frames
+  useEffect(() => {
+    if (crashPhase !== 'chaos') return undefined;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    const els = Array.from(document.querySelectorAll(
+      '#root :is(h1,h2,h3,h4,p,a,button,span,div,section,li,dt,dd,dl,img,svg,summary,details,figure,ol,footer):not(.slide-track):not(.slide):not(.container):not(.ambient)'
+    ));
+    chaosEls.current = els;
+    const rnd = (n) => (Math.random() * 2 - 1) * n;
+    const scatter = () => els.forEach((el) => {
+      el.style.setProperty('--cx', rnd(340) + 'px');
+      el.style.setProperty('--cy', rnd(260) + 'px');
+      el.style.setProperty('--cr', rnd(55) + 'deg');
+      el.style.setProperty('--csk', rnd(28) + 'deg');
+      el.style.setProperty('--cs', String(0.5 + Math.random() * 1.3));
+    });
+    document.documentElement.classList.add('is-chaos');
+    scatter();
+    const id = setInterval(scatter, 200);
+    return () => clearInterval(id);
+  }, [crashPhase]);
+
+  useEffect(() => {
+    if (crashPhase !== 'open') return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') leaveCrash(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [crashPhase, leaveCrash]);
+
+  useEffect(() => {
+    if (!openInterest) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setOpenInterest(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openInterest]);
+
+  const shotSrc = (img) => (typeof img === 'string' ? img : img[theme]);
+  const stop = (e) => e.stopPropagation();
+
+  const toggleTheme = () => setTheme((cur) => (cur === 'dark' ? 'light' : 'dark'));
+
   const toggleLanguage = () => {
     const newLang = i18n.language === 'es' ? 'en' : 'es';
     i18n.changeLanguage(newLang);
@@ -91,18 +206,40 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [goNext, goPrev]);
 
-  const mainProjects = [
-    { title: t('p1'), desc: t('p1d'), url: 'https://zoneshuffle.onrender.com/' },
-    { title: t('p2'), desc: t('p2d'), url: 'https://github.com/Hesoyam91/YTAgent' },
-    { title: t('p3'), desc: t('p3d'), url: 'https://github.com/Hesoyam91/ArchiveRewritter' },
-    { title: t('p4'), desc: t('p4d'), url: 'https://github.com/Hesoyam91/DashboardEjecutivo' },
-    { title: t('p5'), desc: t('p5d'), url: 'https://github.com/Hesoyam91/LinkePost' },
+  const FLOW_IMG = { light: '/screenshots/flow-sunset.png', dark: '/screenshots/flow-night.png' };
+
+  const featuredProjects = [
+    { title: t('p7'), desc: t('p7d'), status: 'statusProd', tags: ['Electron', 'React', 'React Flow', 'TipTap', 'Vitest'], url: 'https://github.com/Hesoyam91/Flow', img: FLOW_IMG },
+    { title: t('p1'), desc: t('p1d'), status: 'statusDev', tags: ['Node.js', 'SSE', 'Web Audio'], url: 'https://zoneshuffle.onrender.com/', img: '/screenshots/zoneshuffle.png' },
+    { title: t('p3'), desc: t('p3d'), status: 'statusProd', tags: ['Electron', 'electron-vite', 'GitHub Actions'], url: 'https://github.com/Hesoyam91/ArchiveRewritter' },
+    { title: t('p2'), desc: t('p2d'), status: 'statusDev', tags: ['Python', 'LangChain', 'Grok', 'Vite'], url: 'https://github.com/Hesoyam91/YTAgent' },
   ];
 
-  const freelanceProjects = [
-    { title: "tudominio.cl", desc: "Desarrollo frontend, UI/UX reactivo, mejora gráfica.", url: "https://tudominio.cl" },
-    { title: "Lago Chapo 3D / WebGL", desc: t('p6d'), url: "https://lagochapolibre.cl" }
+  const moreProjects = [
+    { type: t('typeAI'), title: t('p5'), desc: t('p5d'), status: 'statusDev', tags: ['Chrome Ext.', 'Llama 3.1', 'Node.js'], url: 'https://github.com/Hesoyam91/LinkePost' },
+    { type: t('typeData'), title: t('p4'), desc: t('p4d'), status: 'statusDev', tags: ['React', 'TypeScript', 'Recharts'], url: 'https://github.com/Hesoyam91/DashboardEjecutivo' },
+    { type: t('typeFreelance'), title: 'tudominio.cl', desc: t('p8d'), status: 'statusDone', tags: ['React', 'UI/UX'], url: 'https://tudominio.cl' },
+    { type: t('typeFreelance'), title: 'Lago Chapo 3D', desc: t('p6d'), status: 'statusDone', tags: ['WebGL', 'Three.js'], url: 'https://lagochapolibre.cl' },
   ];
+
+  const profileRows = [
+    ['profClass', t('heroRole')],
+    ['profBase', 'Santiago, Chile'],
+    ['profEdu', t('edu1')],
+    ['profLang', t('profLangVal')],
+    ['profCert', 'Azure Fundamentals (AZ-900) · EF SET C1'],
+  ];
+
+  const timeline = [
+    { when: t('xp3When'), title: t('xp3'), org: 'Entel Connect Center', desc: t('xp3d') },
+    { when: t('xp1When'), title: t('xp1'), org: 'Freelance · lagochapolibre.cl', desc: t('xp1d') },
+    { when: t('xp2When'), title: t('xp2'), org: 'Freelance · tudominio.cl', desc: t('xp2d') },
+    { when: t('xp4When'), title: t('xp4'), org: 'AFP Hábitat', desc: t('xp4d') },
+    { when: t('xp5When'), title: t('xp5'), org: 'Duoc UC', desc: t('xp5d') },
+    { when: '2021 – 2024', title: t('xp6'), org: 'Duoc UC', desc: t('xp6d') },
+  ];
+
+  const faqs = [1, 2, 3, 4].map((n) => ({ q: t('faq' + n + 'q'), a: t('faq' + n + 'a') }));
 
   return (
     <>
@@ -111,9 +248,25 @@ function App() {
       {/* Floating Navbar */}
       <nav className="navbar">
         <div className="timestamp">{time}</div>
-        <button onClick={toggleLanguage} className="lang-btn">
-          {t('changeLang')}
-        </button>
+        <div className="nav-links">
+          {NAV_LINKS.map((l) => (
+            <button
+              key={l.key}
+              className={'nav-link ' + (activeSlide === l.slide ? 'active' : '')}
+              onClick={() => goToSlide(l.slide)}
+            >
+              {t(l.key)}
+            </button>
+          ))}
+        </div>
+        <div className="nav-actions">
+          <button onClick={toggleTheme} className="lang-btn" aria-label={t('themeToggle')} title={t('themeToggle')}>
+            {theme === 'dark' ? '☀' : '☾'}
+          </button>
+          <button onClick={toggleLanguage} className="lang-btn">
+            {t('changeLang')}
+          </button>
+        </div>
       </nav>
 
       {/* Slide progress dots */}
@@ -182,111 +335,194 @@ function App() {
           </div>
         </section>
 
-        {/* Full-screen infinite marquee carousel for Main Projects */}
-        <section className="slide carousel-section carousel-section--full">
-          <div className="carousel-header container">
-            <div className="section-label">
+        {/* Projects: featured + more */}
+        <section className="slide projects-section">
+          <div className="container">
+            <div className="section-label" style={{ marginBottom: '28px' }}>
               <span className="blue-dot"></span>
               <span>{t('projectsTitle')}</span>
             </div>
-          </div>
 
-          <div className="marquee">
-            <div className="marquee-track">
-              {[...mainProjects, ...mainProjects].map((proj, i) => (
-                <a
-                  href={proj.url || '#'}
-                  target={proj.url ? "_blank" : "_self"}
-                  rel="noreferrer"
-                  className="card"
-                  key={i}
-                  aria-hidden={i >= mainProjects.length ? 'true' : undefined}
+            <div className="featured-grid">
+              {featuredProjects.map((p, i) => (
+                <div
+                  className={'flip-card' + (p.img ? ' flippable' : '') + (flipped[p.title] ? ' flipped' : '')}
+                  key={p.title}
+                  {...(p.img ? {
+                    role: 'button',
+                    tabIndex: 0,
+                    'aria-pressed': !!flipped[p.title],
+                    onClick: () => toggleFlip(p.title),
+                    onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFlip(p.title); } },
+                  } : {})}
                 >
-                  <div className="card-num">0{(i % mainProjects.length) + 1}</div>
-                  <div className="card-top">
-                    <h2 className="card-title">{proj.title}</h2>
-                    <p className="card-desc">{proj.desc}</p>
+                  <div className="flip-inner">
+                    <div className="flip-face feature-card">
+                      {p.img && (
+                        <div className="tv-screen">
+                          <span className="tv-label">▶ {t('seeShot')}</span>
+                        </div>
+                      )}
+                      <div className="feature-head">
+                        <span className={'status-badge ' + p.status}>{t(p.status)}</span>
+                        <span className="feature-num">0{i + 1}</span>
+                      </div>
+                      <h3 className="feature-title">{p.title}</h3>
+                      <p className="feature-desc">{p.desc}</p>
+                      <div className="tag-row">
+                        {p.tags.map((tag) => <span className="tag" key={tag}>{tag}</span>)}
+                      </div>
+                      <a className="btn-arrow" href={p.url} target="_blank" rel="noreferrer" onClick={stop}>
+                        [ {p.url.includes('github') ? t('repoBtn') : 'Live Site'} ] →
+                      </a>
+                    </div>
+                    {p.img && (
+                      <div className="flip-face flip-back">
+                        <img src={shotSrc(p.img)} alt={p.title} />
+                        <div className="shot-bar">
+                          <span className="shot-title">{p.title}</span>
+                          <a className="btn-arrow" href={p.url} target="_blank" rel="noreferrer" onClick={stop}>
+                            [ {p.url.includes('github') ? t('repoBtn') : 'Live Site'} ] →
+                          </a>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="btn-arrow">
-                    [ {proj.url.includes('github') ? t('repoBtn') : 'Live Site'} ] →
+                </div>
+              ))}
+            </div>
+
+            <div className="section-label more-label">
+              <span className="blue-dot"></span>
+              <span>{t('moreProjects')} · {moreProjects.length}</span>
+            </div>
+            <div className="more-list">
+              {moreProjects.map((p) => (
+                <a href={p.url} target="_blank" rel="noreferrer" className="more-card" key={p.title}>
+                  <div className="more-meta">
+                    <span className="more-type">{p.type}</span>
+                    <span className={'status-badge ' + p.status}>{t(p.status)}</span>
                   </div>
+                  <div className="more-body">
+                    <h4>{p.title}</h4>
+                    <p>{p.desc}</p>
+                    <div className="tag-row">
+                      {p.tags.map((tag) => <span className="tag" key={tag}>{tag}</span>)}
+                    </div>
+                  </div>
+                  <div className="more-arr">↗</div>
                 </a>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Freelance & External Projects */}
-        <section className="slide freelance-section">
+        {/* Profile */}
+        <section className="slide centered-section">
           <div className="container">
-             <div className="section-label" style={{ marginBottom: '40px' }}>
-                <span className="blue-dot"></span>
-                <span>{t('pArea')}</span>
-             </div>
-             <div className="freelance-grid">
-                 {freelanceProjects.map((f, i) => (
-                   <a
-                     href={f.url || '#'}
-                     target={f.url ? "_blank" : "_self"}
-                     rel="noreferrer"
-                     className="freelance-card"
-                     key={i}
-                   >
-                     <div className="freelance-info">
-                       <h3>{f.title}</h3>
-                       <p>{f.desc}</p>
-                     </div>
-                     {f.url && <div className="nav-arr" style={{border: 'none', background: 'transparent'}}>↗</div>}
-                   </a>
-                 ))}
-             </div>
+            <div className="section-label" style={{ marginBottom: '32px' }}>
+              <span className="blue-dot"></span>
+              <span>{t('profileTitle')}</span>
+            </div>
+            <div className="profile-grid">
+              <dl className="profile-sheet">
+                <div className="profile-avatar-wrap">
+                  <div className="profile-avatar"><Ouroboros className="profile-avatar-icon" /></div>
+                </div>
+                {profileRows.map(([k, v]) => (
+                  <div className="profile-row" key={k}>
+                    <dt>{t(k)}</dt>
+                    <dd>{v}</dd>
+                  </div>
+                ))}
+              </dl>
+              <div>
+                <p className="profile-bio">{t('profileBio')}</p>
+                <div className="pill-group-title">{t('interestsTitle')}</div>
+                <div className="interest-row">
+                  {INTERESTS.filter((id) => id !== 'mystery' || !mysteryGone).map((id) => (
+                    <button
+                      key={id}
+                      className={'interest-btn' + (id === 'mystery' ? ' tv-static' : '')}
+                      onClick={() => (id === 'mystery' ? startCrash() : setOpenInterest(id))}
+                      aria-label={t('interest_' + id)}
+                    >
+                      <InterestIcon id={id} />
+                      {id !== 'mystery' && <span className="interest-name">{t('interest_' + id)}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Experience timeline */}
+        <section className="slide centered-section">
+          <div className="container">
+            <div className="section-label" style={{ marginBottom: '32px' }}>
+              <span className="blue-dot"></span>
+              <span>{t('experienceTitle')}</span>
+            </div>
+            <ol className="timeline">
+              {timeline.map((e, i) => (
+                <li className="timeline-item" key={i}>
+                  <span className="timeline-when">{e.when}</span>
+                  <div>
+                    <h4>{e.title} <span className="timeline-org">| {e.org}</span></h4>
+                    <p>{e.desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
 
         {/* Tech Stack Pills */}
-        <section className="slide stack-section">
+        <section className="slide centered-section">
           <div className="container">
              <div className="section-label" style={{ marginBottom: '40px' }}>
                 <span className="blue-dot"></span>
                 <span>{t('techStack')}</span>
              </div>
 
-             <div className="pills-container">
-               <div>
-                  <div className="pill-group-title">{t('tech1')}</div>
-                  <div className="pills-row">
-                    <div className="pill">Python</div>
-                    <div className="pill">Node.js</div>
-                    <div className="pill">TypeScript</div>
-                    <div className="pill">C#</div>
-                    <div className="pill">SQL</div>
-                    <div className="pill">FastAPI</div>
-                    <div className="pill">LangChain</div>
-                    <div className="pill">Llama 3 / Groq</div>
-                  </div>
-               </div>
-               <div>
-                  <div className="pill-group-title">{t('tech2')}</div>
-                  <div className="pills-row">
-                    <div className="pill">React 18</div>
-                    <div className="pill">Vite</div>
-                    <div className="pill">Tailwind CSS</div>
-                    <div className="pill">Recharts</div>
-                    <div className="pill">Ionic</div>
-                    <div className="pill">Chrome Extensions API</div>
-                    <div className="pill">HTML5 / CSS3</div>
-                  </div>
-               </div>
-               <div>
-                  <div className="pill-group-title">{t('tech3')}</div>
-                  <div className="pills-row">
-                    <div className="pill">Azure Cloud</div>
-                    <div className="pill">SQL Server</div>
-                    <div className="pill">Docker</div>
-                    <div className="pill">Git / GitHub</div>
-                  </div>
-               </div>
+             <div className="stack-groups">
+               {STACK_GROUPS.map((g) => (
+                 <div key={g.key}>
+                   <div className="pill-group-title">{t(g.key)}</div>
+                   <div className="stack-grid">
+                     {g.items.map((it) => (
+                       <div className="stack-tile" key={it.name} title={it.name}>
+                         {it.icon ? (
+                           <svg className="stack-icon" viewBox="0 0 24 24" aria-hidden="true"><path d={it.icon.path} /></svg>
+                         ) : (
+                           <span className="stack-mono">{it.mono}</span>
+                         )}
+                         <span className="stack-name">{it.name}</span>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               ))}
              </div>
+          </div>
+        </section>
+
+        {/* FAQ */}
+        <section className="slide centered-section">
+          <div className="container">
+            <div className="section-label" style={{ marginBottom: '32px' }}>
+              <span className="blue-dot"></span>
+              <span>{t('faqTitle')}</span>
+            </div>
+            <div className="faq-list">
+              {faqs.map((f, i) => (
+                <details className="faq-item" key={i}>
+                  <summary>{f.q}</summary>
+                  <p>{f.a}</p>
+                </details>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -313,6 +549,75 @@ function App() {
           </div>
         </section>
       </div>
+
+      {openInterest && (
+        <div className="modal-backdrop" onClick={() => setOpenInterest(null)}>
+          <div className="modal" role="dialog" aria-modal="true" onClick={stop}>
+            <button className="modal-close" onClick={() => setOpenInterest(null)} aria-label="Close">×</button>
+            <div className="modal-body">
+              <div className="modal-icon">
+                <InterestIcon id={openInterest} />
+              </div>
+              <h3>{t('interest_' + openInterest)}</h3>
+              {t('interest_' + openInterest + '_body', { returnObjects: true }).map((para, i) => <p key={i}>{para}</p>)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {crashPhase && !['chaos', 'off'].includes(crashPhase) && createPortal(
+        <div className={'crash crash--' + crashPhase} role="dialog" aria-modal="true">
+          <div className="crash-fx" aria-hidden="true" />
+          {crashPhase === 'glitch' && (
+            <div className="crash-boot" aria-hidden="true">
+              <p>FATAL ERROR 0xDEADC0DE</p>
+              <p>MEMORY CORRUPTION DETECTED</p>
+              <p>SEGMENTATION FAULT AT 0x00000000</p>
+              <p>REBOOTING INTO UNKNOWN SECTOR_</p>
+            </div>
+          )}
+          {crashPhase === 'rebootBoot' && (
+            <div className="crash-boot crash-boot--blue" aria-hidden="true">
+              <p>SYSTEM REBOOT INITIATED</p>
+              <p>FLUSHING CORRUPTED SECTORS</p>
+              <p>RESTORING SESSION...</p>
+              <p>OK_</p>
+              <div className="crash-progress">
+                <span>SYSTEM REBOOT</span>
+                <div className="crash-progress-bar"><i /></div>
+              </div>
+            </div>
+          )}
+          {(crashPhase === 'open' || crashPhase === 'reboot') && (
+            <>
+              <div className="crash-page">
+                <h2 className="crash-title" data-text={t('hiddenTitle')}>{t('hiddenTitle')}</h2>
+                {HIDDEN_PROJECTS.map((p, n) => (
+                  <section className="crash-block" key={p.n}>
+                    <h3>{t('hidden' + p.n + 'Title')}</h3>
+                    <p>{t('hidden' + p.n + 'Body')}</p>
+                    <div className="crash-tags">
+                      {p.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                    </div>
+                    <figure>
+                      <img src={p.img} alt={t('hidden' + p.n + 'Title')} />
+                      <figcaption>{t('hidden' + p.n + 'Cap')}</figcaption>
+                    </figure>
+                  </section>
+                ))}
+                <svg className="crash-eyes" viewBox="0 0 120 40" aria-hidden="true">
+                  <ellipse cx="32" cy="20" rx="24" ry="12" />
+                  <ellipse cx="88" cy="20" rx="24" ry="12" />
+                  <circle cx="32" cy="20" r="5" />
+                  <circle cx="88" cy="20" r="5" />
+                </svg>
+              </div>
+              <button className="crash-back" onClick={leaveCrash} disabled={crashPhase !== 'open'} autoFocus>[ {t('crashBack')} ]</button>
+            </>
+          )}
+        </div>,
+        document.body
+      )}
     </>
   );
 }
